@@ -35,6 +35,14 @@ class Config:
 
     REDIS_URL: str = os.environ.get("REDIS_URL", "")
 
+    # Users and groups to add to every new welcome channel (comma-separated IDs)
+    WELCOME_CHANNEL_MEMBERS: list[str] = [
+        m.strip() for m in os.environ.get("WELCOME_CHANNEL_MEMBERS", "").split(",") if m.strip()
+    ]
+    WELCOME_CHANNEL_GROUPS: list[str] = [
+        g.strip() for g in os.environ.get("WELCOME_CHANNEL_GROUPS", "").split(",") if g.strip()
+    ]
+
     @classmethod
     def get_channel_name(cls, number: int) -> str:
         if number == 1:

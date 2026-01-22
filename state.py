@@ -18,6 +18,7 @@ class StateBackend(Protocol):
     def get_state(self) -> BotState: ...
     def save_state(self, state: BotState) -> None: ...
     def mark_user_processed(self, user_id: str) -> None: ...
+    def unmark_user_processed(self, user_id: str) -> None: ...
     def is_user_processed(self, user_id: str) -> bool: ...
     def add_pending_guest(self, user_id: str) -> None: ...
     def remove_pending_guest(self, user_id: str) -> None: ...
@@ -49,6 +50,9 @@ class RedisState:
     def mark_user_processed(self, user_id: str) -> None:
         self.redis.sadd(self.processed_key, user_id)
 
+    def unmark_user_processed(self, user_id: str) -> None:
+        self.redis.srem(self.processed_key, user_id)
+
     def is_user_processed(self, user_id: str) -> bool:
         return self.redis.sismember(self.processed_key, user_id)
 
@@ -78,6 +82,10 @@ class InMemoryState:
     def mark_user_processed(self, user_id: str) -> None:
         with self._lock:
             self._state.processed_users.add(user_id)
+
+    def unmark_user_processed(self, user_id: str) -> None:
+        with self._lock:
+            self._state.processed_users.discard(user_id)
 
     def is_user_processed(self, user_id: str) -> bool:
         with self._lock:

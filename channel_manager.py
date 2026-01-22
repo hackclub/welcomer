@@ -63,16 +63,15 @@ class ChannelManager:
         logger.info(f"Processing promoted guest {user_id}")
         self.state.remove_pending_guest(user_id)
 
-        state = self.state.get_state()
-        state.processed_users.discard(user_id)
-        self.state.save_state(state)
-
         return self.add_user_to_welcome_channel(user_id)
 
     def add_user_to_welcome_channel(self, user_id: str) -> bool:
         if self.state.is_user_processed(user_id):
             logger.info("User already processed, skipping")
             return True
+
+        # Mark early to prevent race conditions
+        self.state.mark_user_processed(user_id)
 
         self.add_user_to_default_channels(user_id)
         self.send_optin_prompts(user_id)
@@ -101,8 +100,8 @@ class ChannelManager:
         if result:
             current_state.current_count += 1
             self.state.save_state(current_state)
-            self.state.mark_user_processed(user_id)
             logger.info(f"Added user to channel {current_state.current_channel_number} ({current_state.current_count}/{Config.BATCH_SIZE})")
+            self._send_user_welcome(current_state.current_channel_id, user_id)
         else:
             logger.error(f"Failed to invite user to welcome channel {current_state.current_channel_number}")
 
@@ -118,6 +117,7 @@ class ChannelManager:
             state.current_count = 0
             self.state.save_state(state)
             self._post_welcome_message(channel_id)
+            self._add_default_members(channel_id)
             logger.info(f"Created new channel: {channel_name}")
 
         except SlackApiError as e:
@@ -196,9 +196,11 @@ class ChannelManager:
             self.client.conversations_join(channel=channel_id)
             return True
         except SlackApiError as e:
-            if e.response["error"] == "already_in_channel":
+            error = e.response["error"]
+            # Private channels can't be joined - bot must already be member or create it
+            if error in ("already_in_channel", "method_not_supported_for_channel_type"):
                 return True
-            logger.error(f"Bot failed to join channel {channel_id}: {e.response['error']}")
+            logger.error(f"Bot failed to join channel {channel_id}: {error}")
             return False
 
     def _invite_user(self, channel_id: str, user_id: str) -> bool | str:
@@ -225,9 +227,7 @@ class ChannelManager:
                     continue
 
                 if error in ("user_is_restricted", "user_is_ultra_restricted"):
-                    guest_type = "MCG" if error == "user_is_restricted" else "SCG"
-                    logger.info(f"Skipping {guest_type} user for channel {channel_id}")
-                    self.state.add_pending_guest(user_id)
+                    logger.info(f"Skipping guest user for channel {channel_id}")
                     return "guest"
 
                 if error in ("cant_invite_self", "user_not_found", "method_not_supported_for_channel_type"):
@@ -239,6 +239,42 @@ class ChannelManager:
 
         logger.error("Failed to invite user after max retries")
         return False
+
+    def _send_user_welcome(self, channel_id: str, user_id: str) -> None:
+        try:
+            self.client.chat_postMessage(
+                channel=channel_id,
+                text=f"<@{user_id}> {Config.WELCOME_MESSAGE}",
+            )
+            logger.info(f"Sent welcome message to {user_id}")
+        except SlackApiError as e:
+            logger.error(f"Failed to send welcome message: {e.response['error']}")
+
+    def _add_default_members(self, channel_id: str) -> None:
+        # Add individual users
+        for user_id in Config.WELCOME_CHANNEL_MEMBERS:
+            try:
+                self.client.conversations_invite(channel=channel_id, users=user_id)
+                logger.info(f"Added default member {user_id} to channel")
+            except SlackApiError as e:
+                if e.response["error"] != "already_in_channel":
+                    logger.warning(f"Failed to add member {user_id}: {e.response['error']}")
+
+        # Add user groups
+        for group_id in Config.WELCOME_CHANNEL_GROUPS:
+            try:
+                # Get group members
+                response = self.client.usergroups_users_list(usergroup=group_id)
+                users = response.get("users", [])
+                for user_id in users:
+                    try:
+                        self.client.conversations_invite(channel=channel_id, users=user_id)
+                    except SlackApiError as e:
+                        if e.response["error"] != "already_in_channel":
+                            logger.warning(f"Failed to add group member {user_id}: {e.response['error']}")
+                logger.info(f"Added group {group_id} members to channel")
+            except SlackApiError as e:
+                logger.warning(f"Failed to get group {group_id} members: {e.response['error']}")
 
     def _post_welcome_message(self, channel_id: str) -> None:
         try:

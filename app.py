@@ -39,33 +39,31 @@ def main():
 
     @app.event("team_join")
     def handle_team_join(event: dict, logger: logging.Logger):
-        logger.info(f"team_join event received: {event.get('user', {}).get('id', 'unknown')}")
-        
         if not Config.BOT_ENABLED:
-            logger.info("Bot disabled, skipping")
             return
 
         user = event.get("user", {})
         user_id = user.get("id")
 
-        if not user_id:
-            logger.warning("No user_id in event")
+        if not user_id or user.get("is_bot"):
             return
 
-        if user.get("is_bot"):
-            logger.info("Skipping bot user")
+        # If user is a guest, wait until they become full member
+        if user.get("is_restricted") or user.get("is_ultra_restricted"):
+            logger.info(f"New guest {user_id}, waiting for promotion")
+            state_backend.add_pending_guest(user_id)
             return
 
-        logger.info(f"Processing new user join: {user_id}")
-
+        logger.info(f"Processing new full member: {user_id}")
         try:
-            result = channel_manager.add_user_to_welcome_channel(user_id)
-            logger.info(f"add_user_to_welcome_channel result: {result}")
+            channel_manager.add_user_to_welcome_channel(user_id)
         except Exception:
             logger.exception("Error processing team_join")
 
     @app.event("member_joined_channel")
     def handle_member_joined(event: dict, client, logger: logging.Logger):
+        logger.info(f"member_joined_channel event: {event}")
+        
         if not Config.BOT_ENABLED:
             return
 
@@ -77,27 +75,21 @@ def main():
 
         current_state = state_backend.get_state()
         is_welcome_channel = channel_id == current_state.current_channel_id
+        logger.info(f"Channel {channel_id} vs current {current_state.current_channel_id}, is_welcome={is_welcome_channel}")
 
         if not is_welcome_channel:
             try:
                 info = client.conversations_info(channel=channel_id)
                 channel_name = info["channel"]["name"]
                 is_welcome_channel = Config.is_welcome_channel_name(channel_name)
-            except Exception:
-                pass
+                logger.info(f"Channel name: {channel_name}, is_welcome_channel: {is_welcome_channel}")
+            except Exception as e:
+                logger.warning(f"Failed to get channel info: {e}")
 
         if not is_welcome_channel:
             return
 
-        try:
-            client.chat_postEphemeral(
-                channel=channel_id,
-                user=user_id,
-                text=Config.WELCOME_MESSAGE,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to send channel welcome: {e}")
-
+        # Only process if user hasn't been handled by team_join
         if not state_backend.is_user_processed(user_id):
             try:
                 channel_manager.add_user_to_welcome_channel(user_id)
