@@ -7,6 +7,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from config import Config
 from state import InMemoryState, RedisState
 from channel_manager import ChannelManager
+from slack_logger import SlackLogHandler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,11 @@ def main():
         logger.info("Using in-memory state (set REDIS_URL for persistence)")
 
     channel_manager = ChannelManager(app.client, state_backend)
+
+    if Config.LOG_CHANNEL:
+        slack_handler = SlackLogHandler(app.client, Config.LOG_CHANNEL)
+        logging.getLogger().addHandler(slack_handler)
+        logger.info("Slack log channel enabled")
 
     @app.event("team_join")
     def handle_team_join(event: dict, logger: logging.Logger):

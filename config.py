@@ -34,6 +34,7 @@ class Config:
     WELCOME_COMMITTEE_CHANNEL: str = os.environ.get("WELCOME_COMMITTEE_CHANNEL", "")
 
     REDIS_URL: str = os.environ.get("REDIS_URL", "")
+    LOG_CHANNEL: str = os.environ.get("LOG_CHANNEL", "")
 
     # Users and groups to add to every new welcome channel (comma-separated IDs)
     WELCOME_CHANNEL_MEMBERS: list[str] = [
