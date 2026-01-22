@@ -6,5 +6,5 @@ Don't know how to use slack? Use <https://hackclub.enterprise.slack.com/docs/T02
 
 Welcome! We're so glad you're here.
 
-PS: if you have any questions you can ask us just type /helpme and we will reach out to you soon!
+PS: if you have any questions you can ask us in this channel!
 """.strip()

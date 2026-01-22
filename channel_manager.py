@@ -278,10 +278,11 @@ class ChannelManager:
 
     def _post_welcome_message(self, channel_id: str) -> None:
         try:
-            response = self.client.chat_postMessage(
+            response = self.client.chat_postEphemeral(
                 channel=channel_id,
                 text=Config.WELCOME_MESSAGE,
                 unfurl_links=False,
+                
             )
 
             if Config.PIN_WELCOME_MESSAGE and response.get("ts"):
