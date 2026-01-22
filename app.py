@@ -57,11 +57,8 @@ def main():
 
         # If user is a guest, wait until they become full member
         if user.get("is_restricted") or user.get("is_ultra_restricted"):
-            logger.info(f"New guest {user_id}, waiting for promotion")
             state_backend.add_pending_guest(user_id)
             return
-
-        logger.info(f"Processing new full member: {user_id}")
         try:
             channel_manager.add_user_to_welcome_channel(user_id)
         except Exception:
@@ -69,8 +66,6 @@ def main():
 
     @app.event("member_joined_channel")
     def handle_member_joined(event: dict, client, logger: logging.Logger):
-        logger.info(f"member_joined_channel event: {event}")
-        
         if not Config.BOT_ENABLED:
             return
 
@@ -82,16 +77,14 @@ def main():
 
         current_state = state_backend.get_state()
         is_welcome_channel = channel_id == current_state.current_channel_id
-        logger.info(f"Channel {channel_id} vs current {current_state.current_channel_id}, is_welcome={is_welcome_channel}")
 
         if not is_welcome_channel:
             try:
                 info = client.conversations_info(channel=channel_id)
                 channel_name = info["channel"]["name"]
                 is_welcome_channel = Config.is_welcome_channel_name(channel_name)
-                logger.info(f"Channel name: {channel_name}, is_welcome_channel: {is_welcome_channel}")
-            except Exception as e:
-                logger.warning(f"Failed to get channel info: {e}")
+            except Exception:
+                pass
 
         if not is_welcome_channel:
             return
@@ -216,13 +209,11 @@ def main():
 
     @app.event("user_change")
     def handle_user_change(event: dict, logger: logging.Logger):
-        user = event.get("user", {})
-        user_id = user.get("id")
-        
-        logger.info(f"user_change event: {user_id}, restricted={user.get('is_restricted')}, ultra={user.get('is_ultra_restricted')}")
-        
         if not Config.BOT_ENABLED:
             return
+
+        user = event.get("user", {})
+        user_id = user.get("id")
 
         if not user_id:
             return
@@ -231,10 +222,7 @@ def main():
         is_ultra_restricted = user.get("is_ultra_restricted", False)
 
         if not is_restricted and not is_ultra_restricted:
-            is_pending = state_backend.is_pending_guest(user_id)
-            logger.info(f"User {user_id} is_pending_guest: {is_pending}")
-            if is_pending:
-                logger.info(f"Guest {user_id} promoted to full member")
+            if state_backend.is_pending_guest(user_id):
                 try:
                     channel_manager.process_promoted_guest(user_id)
                 except Exception:

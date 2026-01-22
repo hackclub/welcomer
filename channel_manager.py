@@ -15,10 +15,13 @@ class ChannelManager:
         self.state = state_backend
 
     def add_user_to_default_channels(self, user_id: str) -> None:
+        added = []
         for channel_id in Config.DEFAULT_CHANNELS:
             result = self._invite_user(channel_id, user_id)
             if result and result != "guest":
-                logger.info(f"Added user to default channel {channel_id}")
+                added.append(channel_id)
+        if added:
+            logger.info(f"Added {user_id} to {len(added)} default channels")
 
     def send_optin_prompts(self, user_id: str) -> None:
         for channel_id, message in Config.OPTIN_CHANNELS.items():
@@ -52,7 +55,6 @@ class ChannelManager:
                         },
                     ],
                 )
-                logger.info(f"Sent opt-in prompt for channel {channel_id}")
             except SlackApiError as e:
                 logger.error(f"Failed to send opt-in prompt: {e.response['error']}")
 
@@ -60,14 +62,11 @@ class ChannelManager:
         if not self.state.is_pending_guest(user_id):
             return False
 
-        logger.info(f"Processing promoted guest {user_id}")
         self.state.remove_pending_guest(user_id)
-
         return self.add_user_to_welcome_channel(user_id)
 
     def add_user_to_welcome_channel(self, user_id: str) -> bool:
         if self.state.is_user_processed(user_id):
-            logger.info("User already processed, skipping")
             return True
 
         # Mark early to prevent race conditions
@@ -100,10 +99,10 @@ class ChannelManager:
         if result:
             current_state.current_count += 1
             self.state.save_state(current_state)
-            logger.info(f"Added user to channel {current_state.current_channel_number} ({current_state.current_count}/{Config.BATCH_SIZE})")
             self._send_user_welcome(current_state.current_channel_id, user_id)
+            logger.info(f"Welcomed {user_id} to channel {current_state.current_channel_number} ({current_state.current_count}/{Config.BATCH_SIZE})")
         else:
-            logger.error(f"Failed to invite user to welcome channel {current_state.current_channel_number}")
+            logger.error(f"Failed to invite {user_id} to welcome channel")
 
         return bool(result)
 
@@ -247,34 +246,32 @@ class ChannelManager:
                 user=user_id,  # REQUIRED
                 text=Config.WELCOME_MESSAGE,
             )
-            logger.info(f"Sent ephemeral welcome message to {user_id}")
         except SlackApiError as e:
             logger.error(f"Failed to send welcome message: {e.response['error']}")
 
 
     def _add_default_members(self, channel_id: str) -> None:
-        # Add individual users
+        added_count = 0
+        
         for user_id in Config.WELCOME_CHANNEL_MEMBERS:
             try:
                 self.client.conversations_invite(channel=channel_id, users=user_id)
-                logger.info(f"Added default member {user_id} to channel")
+                added_count += 1
             except SlackApiError as e:
                 if e.response["error"] != "already_in_channel":
                     logger.warning(f"Failed to add member {user_id}: {e.response['error']}")
 
-        # Add user groups
         for group_id in Config.WELCOME_CHANNEL_GROUPS:
             try:
-                # Get group members
                 response = self.client.usergroups_users_list(usergroup=group_id)
                 users = response.get("users", [])
                 for user_id in users:
                     try:
                         self.client.conversations_invite(channel=channel_id, users=user_id)
+                        added_count += 1
                     except SlackApiError as e:
                         if e.response["error"] != "already_in_channel":
                             logger.warning(f"Failed to add group member {user_id}: {e.response['error']}")
-                logger.info(f"Added group {group_id} members to channel")
             except SlackApiError as e:
                 logger.warning(f"Failed to get group {group_id} members: {e.response['error']}")
 
