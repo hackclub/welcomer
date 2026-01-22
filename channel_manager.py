@@ -242,13 +242,15 @@ class ChannelManager:
 
     def _send_user_welcome(self, channel_id: str, user_id: str) -> None:
         try:
-            self.client.chat_postMessage(
+            self.client.chat_postEphemeral(
                 channel=channel_id,
-                text=f"<@{user_id}> {Config.WELCOME_MESSAGE}",
+                user=user_id,  # REQUIRED
+                text=Config.WELCOME_MESSAGE,
             )
-            logger.info(f"Sent welcome message to {user_id}")
+            logger.info(f"Sent ephemeral welcome message to {user_id}")
         except SlackApiError as e:
             logger.error(f"Failed to send welcome message: {e.response['error']}")
+
 
     def _add_default_members(self, channel_id: str) -> None:
         # Add individual users
