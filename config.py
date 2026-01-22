@@ -14,7 +14,6 @@ class Config:
     BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "500"))
 
     CHANNEL_PREFIX: str = os.environ.get("CHANNEL_PREFIX", "welcome")
-    CHANNEL_NAME_FORMAT: str = os.environ.get("CHANNEL_NAME_FORMAT", "{prefix}-{n}")
 
     WELCOME_MESSAGE: str = WELCOME_MESSAGE
 
@@ -38,12 +37,15 @@ class Config:
 
     @classmethod
     def get_channel_name(cls, number: int) -> str:
-        return cls.CHANNEL_NAME_FORMAT.format(prefix=cls.CHANNEL_PREFIX, n=number)
+        if number == 1:
+            return cls.CHANNEL_PREFIX
+        return f"{cls.CHANNEL_PREFIX}-{number - 1}"
 
     @classmethod
     def is_welcome_channel_name(cls, name: str) -> bool:
-        sample = cls.CHANNEL_NAME_FORMAT.format(prefix=cls.CHANNEL_PREFIX, n="")
-        return name.startswith(sample)
+        if name == cls.CHANNEL_PREFIX:
+            return True
+        return name.startswith(f"{cls.CHANNEL_PREFIX}-")
 
     @classmethod
     def validate(cls) -> list[str]:

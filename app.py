@@ -131,7 +131,7 @@ def main():
             text="No problem! You can always join later.",
         )
 
-    @app.command("/i-need-help")
+    @app.command("/helpme")
     def handle_help_command(ack, body, client, logger):
         logger.info(f"Received /i-need-help command from {body['user_id']}")
         ack()

@@ -112,7 +112,7 @@ class ChannelManager:
         channel_name = Config.get_channel_name(state.current_channel_number)
 
         try:
-            response = self.client.conversations_create(name=channel_name, is_private=False)
+            response = self.client.conversations_create(name=channel_name, is_private=True)
             channel_id = response["channel"]["id"]
             state.current_channel_id = channel_id
             state.current_count = 0
@@ -138,7 +138,7 @@ class ChannelManager:
                 for attempt in range(3):
                     try:
                         response = self.client.conversations_list(
-                            types="public_channel",
+                            types="private_channel",
                             exclude_archived=False,
                             limit=200,
                             cursor=cursor,
