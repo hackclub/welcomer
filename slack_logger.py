@@ -1,6 +1,32 @@
 import logging
+import re
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+
+SKIP_PATTERNS = [
+    r"Skipping guest user",
+    r"Skipping user \(",
+    r"User already processed",
+    r"Rate limited, waiting",
+    r"member_joined_channel event",
+    r"Channel .* vs current",
+    r"Channel name:",
+    r"user_change event",
+    r"is_pending_guest:",
+    r"New guest .*, waiting",
+    r"Added default member",
+    r"Added group .* members",
+    r"Sent opt-in prompt",
+]
+
+SKIP_REGEX = re.compile("|".join(SKIP_PATTERNS))
+
+
+class SlackLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno >= logging.WARNING:
+            return True
+        return not SKIP_REGEX.search(record.getMessage())
 
 
 class SlackLogHandler(logging.Handler):

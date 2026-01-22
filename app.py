@@ -7,7 +7,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from config import Config
 from state import InMemoryState, RedisState
 from channel_manager import ChannelManager
-from slack_logger import SlackLogHandler
+from slack_logger import SlackLogHandler, SlackLogFilter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +40,7 @@ def main():
 
     if Config.LOG_CHANNEL:
         slack_handler = SlackLogHandler(app.client, Config.LOG_CHANNEL)
+        slack_handler.addFilter(SlackLogFilter())
         logging.getLogger().addHandler(slack_handler)
         logger.info("Slack log channel enabled")
 
