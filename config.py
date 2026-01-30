@@ -11,7 +11,7 @@ class Config:
     SLACK_APP_TOKEN: str = os.environ.get("SLACK_APP_TOKEN", "")
 
     BOT_ENABLED: bool = os.environ.get("BOT_ENABLED", "true").lower() == "true"
-    BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "500"))
+    BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", "1000"))
 
     CHANNEL_PREFIX: str = os.environ.get("CHANNEL_PREFIX", "welcome")
 
